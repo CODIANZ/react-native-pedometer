@@ -1,8 +1,19 @@
-import type { TurboModule } from 'react-native';
-import { TurboModuleRegistry } from 'react-native';
+import { TurboModuleRegistry, type TurboModule } from 'react-native';
 
 export interface Spec extends TurboModule {
-  multiply(a: number, b: number): number;
+  // Permission
+  isAvailable: () => Promise<boolean>;
+  requestPermission: () => Promise<boolean>;
+  // Tracking
+  startTracking: () => Promise<void>;
+  stopTracking: () => Promise<void>;
+
+  /**
+   * @param from UTC timestamp in milliseconds
+   * @param to UTC timestamp in milliseconds
+   * @returns Number of steps taken between the given timestamps
+   */
+  queryCount: (from: number, to: number) => Promise<number>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('Pedometer');
