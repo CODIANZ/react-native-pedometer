@@ -91,56 +91,28 @@ class StepRepository(private val stepDao: StepDao) : IStepRepository {
   }
 
   /**
-   * 指定期間の歩数を取得
+   * 指定期間の歩数データを取得
    *
    * @param from 開始時間（ミリ秒）
    * @param to 終了時間（ミリ秒）
-   * @return 歩数サマリー
+   * @return 歩数データのリスト
    */
-  override suspend fun getStepsBetween(from: Long, to: Long): PedometerResult<StepSummary> {
+  override suspend fun getStepsBetween(from: Long, to: Long): PedometerResult<List<StepEntity>> {
     return ErrorHandler.runCatching {
       if (to < from) {
         throw PedometerError.InvalidParameterError("終了時間は開始時間より後である必要があります")
       }
 
       try {
-        // 歩数を取得（NULLの場合は0）
-        val stepCount = stepDao.getStepsBetween(from, to) ?: 0
-
-        val summary = StepSummary(
-          startTime = from,
-          endTime = to,
-          stepCount = stepCount
-        )
-
-        summary // 直接StepSummary型を返す
-      } catch (e: Exception) {
-        Log.e(TAG, "歩数の取得に失敗しました", e)
-        throw PedometerError.DatabaseError("歩数の取得に失敗しました: ${e.message}", e)
-      }
-    }
-  }
-
-  /**
-   * デバッグ用に指定期間内の全歩数データを取得
-   *
-   * @param from 開始時間（ミリ秒）
-   * @param to 終了時間（ミリ秒）
-   * @return 全歩数データのリスト
-   */
-  suspend fun getAllStepsForDebug(from: Long, to: Long): PedometerResult<List<StepEntity>> {
-    return ErrorHandler.runCatching {
-      if (to < from) {
-        throw PedometerError.InvalidParameterError("終了時間は開始時間より後である必要があります")
-      }
-
-      try {
-        val allSteps = stepDao.getAllStepsBetween(from, to)
-        Log.d(TAG, "デバッグ用歩数データを取得: ${allSteps.size}件")
-        allSteps
+        val entities = stepDao.getEntitiesBetween(from, to)
+        Log.d(TAG, "デバッグ用歩数データを取得: ${entities.size}件")
+        entities
       } catch (e: Exception) {
         Log.e(TAG, "デバッグ用歩数データの取得に失敗しました", e)
-        throw PedometerError.DatabaseError("デバッグ用歩数データの取得に失敗しました: ${e.message}", e)
+        throw PedometerError.DatabaseError(
+          "デバッグ用歩数データの取得に失敗しました: ${e.message}",
+          e
+        )
       }
     }
   }
@@ -213,6 +185,38 @@ class StepRepository(private val stepDao: StepDao) : IStepRepository {
         "セッションの最新歩数データの取得に失敗しました: ${e.message}",
         e
       )
+    }
+  }
+
+  /**
+   * 指定したセッションの最新ステップを取得
+   *
+   * @param sessionId セッションID
+   * @return 最新ステップ、存在しない場合はnull
+   */
+  suspend fun getLatestStepBySession(sessionId: String): Int? {
+    return try {
+      val entity = stepDao.getLatestStepBySessionId(sessionId)
+      entity?.calculatedSteps
+    } catch (e: Exception) {
+      Log.e(TAG, "セッションの最新ステップ取得中にエラー: $sessionId", e)
+      null
+    }
+  }
+
+  /**
+   * 指定した時間より前の最新ステップを取得
+   *
+   * @param timestamp タイムスタンプ
+   * @return 指定時間前の最新ステップ、存在しない場合は0
+   */
+  suspend fun getLatestStepBefore(timestamp: Long): Int {
+    return try {
+      val entity = stepDao.getLatestStepBefore(timestamp)
+      entity?.calculatedSteps ?: 0
+    } catch (e: Exception) {
+      Log.e(TAG, "過去の歩数記録取得中にエラー: ${e.message}", e)
+      0
     }
   }
 

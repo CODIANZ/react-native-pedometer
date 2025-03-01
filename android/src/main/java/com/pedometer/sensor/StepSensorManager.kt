@@ -67,6 +67,7 @@ class StepSensorManager(
 
   override suspend fun initialize(): PedometerResult<Unit> {
     return ErrorHandler.runCatching {
+      ensureNewSession()
       // StepProcessorを初期化
       val result = stepProcessor.initialize()
       if (result is PedometerResult.Failure) {
@@ -76,10 +77,21 @@ class StepSensorManager(
       // 初期セッションIDを設定
       currentSessionId = (result as PedometerResult.Success).value
 
+      // StepRepositoryにセッションIDを設定
+      try {
+        if (stepRepository is com.pedometer.repository.StepRepository) {
+          (stepRepository as com.pedometer.repository.StepRepository).setSessionId(currentSessionId)
+          Log.d(TAG, "リポジトリにセッションIDを設定: $currentSessionId")
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "セッションID設定中にエラーが発生しました: ${e.message}", e)
+      }
+
       Log.d(TAG, "StepSensorManager初期化完了: sessionId=$currentSessionId")
       Unit // 直接Unit型を返す
     }
   }
+
 
   override fun startTracking(): PedometerResult<String> {
     return ErrorHandler.runCatching {
@@ -172,49 +184,100 @@ class StepSensorManager(
     }
   }
 
-private fun processSensorReading(sensorSteps: Int, timestamp: Long) {
+  private fun processSensorReading(sensorSteps: Int, timestamp: Long) {
     // 追跡中でない場合は処理しない
     if (!isTracking.get()) {
-        return
+      return
     }
 
     // 単一スレッドで処理することで並行実行を防ぐ
     coroutineScope.launch(sensorProcessingDispatcher) {
-        try {
-            Log.d(TAG, "センサー処理開始 [${Thread.currentThread().id}]: センサー値=$sensorSteps, 時間=$timestamp")
+      try {
+        Log.d(
+          TAG,
+          "センサー処理開始 [${Thread.currentThread().id}]: センサー値=$sensorSteps, 時間=$timestamp"
+        )
 
-            // StepProcessorでセンサーデータを処理
-            val result = stepProcessor.processSensorReading(sensorSteps, timestamp)
+        // StepProcessorでセンサーデータを処理
+        val result = stepProcessor.processSensorReading(sensorSteps, timestamp)
 
-            if (result is PedometerResult.Failure) {
-                Log.e(TAG, "歩数処理中にエラーが発生しました: ${result.error.message}")
-                return@launch
-            }
-
-            val processResult = (result as PedometerResult.Success).value
-
-            // セッションIDの更新
-            if (processResult.sessionId != currentSessionId) {
-                currentSessionId = processResult.sessionId
-                Log.d(TAG, "セッションIDを更新: $currentSessionId")
-            }
-
-            // 歩数データを記録（差分が0より大きい場合のみ）
-            if (processResult.calculatedSteps > 0 || processResult.isFirstReading) {
-                recordStepData(
-                    processResult.calculatedSteps,
-                    sensorSteps,
-                    timestamp,
-                    processResult.sessionId
-                )
-            }
-
-            Log.d(TAG, "センサー処理完了 [${Thread.currentThread().id}]: センサー値=$sensorSteps, 計算歩数=${processResult.calculatedSteps}")
-        } catch (e: Exception) {
-            Log.e(TAG, "センサーデータ処理中に予期しないエラーが発生しました: ${e.message}", e)
+        if (result is PedometerResult.Failure) {
+          Log.e(TAG, "歩数処理中にエラーが発生しました: ${result.error.message}")
+          return@launch
         }
+
+        val processResult = (result as PedometerResult.Success).value
+
+        // セッションIDの更新
+        if (processResult.sessionId != currentSessionId) {
+          val oldSessionId = currentSessionId
+          currentSessionId = processResult.sessionId
+          Log.d(TAG, "セッションIDを更新: $oldSessionId -> $currentSessionId")
+
+          // StepRepositoryにも新しいセッションIDを設定
+          try {
+            if (stepRepository is com.pedometer.repository.StepRepository) {
+              (stepRepository as com.pedometer.repository.StepRepository).setSessionId(
+                currentSessionId
+              )
+            }
+          } catch (e: Exception) {
+            Log.e(TAG, "セッションID更新中にエラーが発生しました: ${e.message}", e)
+          }
+        }
+
+        // 歩数データを記録（差分が0より大きい場合、初回の場合、またはリセット検出時）
+        if (processResult.calculatedSteps > 0 || processResult.isFirstReading || processResult.isSensorReset) {
+          recordStepData(
+            processResult.calculatedSteps,
+            sensorSteps,
+            timestamp,
+            processResult.sessionId
+          )
+
+          // リセット検出時のログ記録
+          if (processResult.isSensorReset) {
+            Log.d(
+              TAG,
+              "センサーリセット後の最初のイベント: センサー値=$sensorSteps, 計算歩数=${processResult.calculatedSteps}"
+            )
+          }
+        }
+
+        Log.d(
+          TAG,
+          "センサー処理完了 [${Thread.currentThread().id}]: センサー値=$sensorSteps, 計算歩数=${processResult.calculatedSteps}"
+        )
+      } catch (e: Exception) {
+        Log.e(TAG, "センサーデータ処理中に予期しないエラーが発生しました: ${e.message}", e)
+      }
     }
-}
+  }
+
+  private suspend fun ensureNewSession() {
+    try {
+      // 新しいセッションの開始（常に新しいセッションで開始）
+      val result = stepProcessor.startNewSession()
+      if (result is PedometerResult.Success) {
+        currentSessionId = result.value
+        Log.d(TAG, "新しいセッションを開始: $currentSessionId")
+
+        // StepRepositoryにも設定
+        try {
+          if (stepRepository is com.pedometer.repository.StepRepository) {
+            (stepRepository as com.pedometer.repository.StepRepository).setSessionId(
+              currentSessionId
+            )
+          }
+        } catch (e: Exception) {
+          Log.e(TAG, "セッションID設定中にエラー: ${e.message}", e)
+        }
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "新規セッション作成に失敗: ${e.message}", e)
+    }
+  }
+
   /**
    * 歩数データをリポジトリに記録する
    *

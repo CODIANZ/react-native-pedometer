@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.CoroutineName
 import android.util.Log
+import com.pedometer.database.StepEntity
 import com.pedometer.permission.ReactPermissionAdapter
 import com.pedometer.permission.manager.IPermissionManager
 import com.pedometer.repository.IStepRepository
@@ -138,21 +139,52 @@ class PedometerModule(
   }
 
   /**
-   * 指定期間の歩数を取得
+   * 指定期間の歩数データを取得
    *
    * @param from 開始時間（ミリ秒）
    * @param to 終了時間（ミリ秒）
    */
-  override fun queryCount(from: Double, to: Double, promise: Promise) {
+  override fun querySteps(from: Double, to: Double, promise: Promise) {
     ErrorHandler.handleCoroutine(moduleScope, Dispatchers.IO, promise) {
-      when (val result = stepRepository.getStepsBetween(from.toLong(), to.toLong())) {
-        is PedometerResult.Success -> {
-          val summary = result.value
-          PedometerResult.success(summary.stepCount)
-        }
+      try {
+        val result = (stepRepository as com.pedometer.repository.StepRepository)
+          .getStepsBetween(from.toLong(), to.toLong())
 
-        is PedometerResult.Failure -> result
+        when (result) {
+          is PedometerResult.Success -> {
+            val stepEntities = result.value
+            val stepsArray = Arguments.createArray()
+
+            // StepEntityをJSオブジェクトに変換
+            for (entity in stepEntities) {
+              val stepData = convertStepEntityToJSMap(entity)
+              stepsArray.pushMap(stepData)
+            }
+
+            PedometerResult.success(stepsArray)
+          }
+
+          is PedometerResult.Failure -> result
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "詳細な歩数データの取得中にエラーが発生しました", e)
+        PedometerResult.Failure(
+          PedometerError.fromThrowable(e)
+        )
       }
+    }
+  }
+
+  /**
+   * StepEntityをJavaScriptのMapに変換する
+   */
+  private fun convertStepEntityToJSMap(entity: StepEntity): WritableMap {
+    return Arguments.createMap().apply {
+      putDouble("timestamp", entity.timestamp.toDouble())
+      putInt("steps", entity.calculatedSteps)
+      putInt("calculatedSteps", entity.calculatedSteps)
+      putInt("sensorSteps", entity.sensorTotalSteps)
+      putString("sessionId", entity.sessionId)
     }
   }
 

@@ -20,6 +20,8 @@ class PedometerStateManager(context: Context) {
     private const val KEY_TOTAL_STEPS = "totalSteps"
     private const val KEY_LAST_TIMESTAMP = "lastTimestamp"
     private const val KEY_IS_TRACKING = "isTracking"
+    private const val KEY_BOOT_TIME = "bootTime"  // ブート時間保存用
+
   }
 
   // SharedPreferences
@@ -217,6 +219,49 @@ class PedometerStateManager(context: Context) {
       lastTimestamp = prefs.getLong(KEY_LAST_TIMESTAMP, 0L),
       isTracking = prefs.getBoolean(KEY_IS_TRACKING, false)
     )
+  }
+
+  /**
+   * デバイス再起動を検出する
+   *
+   * @return 再起動が検出された場合はtrue
+   */
+  suspend fun checkDeviceReboot(): Boolean = mutex.withLock {
+    try {
+      val currentBootTime = android.os.SystemClock.elapsedRealtime()
+      val lastBootTime = prefs.getLong(KEY_BOOT_TIME, -1)
+
+      // 前回のブート時間が記録されていない場合は初回起動とみなす
+      if (lastBootTime == -1L) {
+        prefs.edit().putLong(KEY_BOOT_TIME, currentBootTime).apply()
+        Log.d(TAG, "初回起動: ブート時間を記録 = $currentBootTime")
+        return false
+      }
+
+      // 現在のブート時間が前回より小さい場合は再起動があったとみなす
+      val isRebooted = currentBootTime < lastBootTime
+
+      if (isRebooted) {
+        Log.d(TAG, "デバイスの再起動を検出: 前回=$lastBootTime, 現在=$currentBootTime")
+        // ブート時間を更新
+        prefs.edit().putLong(KEY_BOOT_TIME, currentBootTime).apply()
+
+        // センサー値もリセット
+        prefs.edit().putInt(KEY_LAST_SENSOR_STEPS, -1).apply()
+
+        return true
+      }
+
+      // ブート時間を更新（1時間に1回程度）
+      if (currentBootTime - lastBootTime > 3600000) {
+        prefs.edit().putLong(KEY_BOOT_TIME, currentBootTime).apply()
+      }
+
+      return false
+    } catch (e: Exception) {
+      Log.e(TAG, "再起動チェック中にエラーが発生しました", e)
+      return false
+    }
   }
 }
 

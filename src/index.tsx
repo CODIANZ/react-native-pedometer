@@ -1,9 +1,11 @@
-import Pedometer from './NativePedometer';
+import Pedometer, { type StepData } from './NativePedometer';
+
+export type { StepData };
 
 export const {
   isAvailable,
   requestPermission,
   startTracking,
   stopTracking,
-  queryCount,
+  querySteps,
 } = Pedometer;

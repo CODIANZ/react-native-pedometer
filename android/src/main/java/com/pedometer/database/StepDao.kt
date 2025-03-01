@@ -14,24 +14,7 @@ interface StepDao {
   suspend fun insert(step: StepEntity)
 
   /**
-   * 指定期間内の歩数合計を取得する
-   * 実際の歩数（calculated_steps）の合計を計算
-   *
-   * @param from 開始時間（ミリ秒）
-   * @param to 終了時間（ミリ秒）
-   * @return 歩数合計（NULLの場合は0として扱う）
-   */
-  @Query(
-    """
-        SELECT SUM(calculated_steps)
-        FROM steps
-        WHERE timestamp BETWEEN :from AND :to
-    """
-  )
-  suspend fun getStepsBetween(from: Long, to: Long): Int?
-
-  /**
-   * 指定期間内の全歩数データを取得する
+   * 指定期間内の歩数データを取得する
    *
    * @param from 開始時間（ミリ秒）
    * @param to 終了時間（ミリ秒）
@@ -44,7 +27,7 @@ interface StepDao {
         ORDER BY timestamp ASC
     """
   )
-  suspend fun getAllStepsBetween(from: Long, to: Long): List<StepEntity>
+  suspend fun getEntitiesBetween(from: Long, to: Long): List<StepEntity>
 
   /**
    * 最新の歩数データを取得する
@@ -72,6 +55,21 @@ interface StepDao {
     """
   )
   suspend fun getLatestStepBySessionId(sessionId: String): StepEntity?
+
+  /**
+   * 指定した時間より前の最新の歩数データを取得
+   *
+   * @param timestamp タイムスタンプ
+   */
+  @Query(
+    """
+    SELECT * FROM steps
+    WHERE timestamp <= :timestamp
+    ORDER BY timestamp DESC
+    LIMIT 1
+  """
+  )
+  suspend fun getLatestStepBefore(timestamp: Long): StepEntity?
 
   /**
    * 指定した日時より前のデータを削除する

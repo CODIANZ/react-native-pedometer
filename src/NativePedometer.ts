@@ -1,5 +1,13 @@
 import { TurboModuleRegistry, type TurboModule } from 'react-native';
 
+export interface StepData {
+  timestamp: number;
+  steps: number;
+  calculatedSteps: number;
+  sensorSteps?: number;
+  sessionId: string;
+}
+
 export interface Spec extends TurboModule {
   // Permission
   isAvailable: () => Promise<boolean>;
@@ -11,9 +19,9 @@ export interface Spec extends TurboModule {
   /**
    * @param from UTC timestamp in milliseconds
    * @param to UTC timestamp in milliseconds
-   * @returns Number of steps taken between the given timestamps
+   * @returns Detailed step data between the given timestamps
    */
-  queryCount: (from: number, to: number) => Promise<number>;
+  querySteps: (from: number, to: number) => Promise<StepData[]>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('Pedometer');
