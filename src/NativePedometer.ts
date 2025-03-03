@@ -15,8 +15,17 @@ export interface Spec extends TurboModule {
   // Tracking
   startTracking: () => Promise<void>;
   stopTracking: () => Promise<void>;
+  // Data traversal
 
   /**
+   * @param from UTC timestamp in milliseconds
+   * @param to UTC timestamp in milliseconds
+   * @returns The total number of steps between the given timestamps
+   */
+  queryCount: (from: number, to: number) => Promise<number>;
+
+  /**
+   * Android only
    * @param from UTC timestamp in milliseconds
    * @param to UTC timestamp in milliseconds
    * @returns Detailed step data between the given timestamps

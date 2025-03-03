@@ -8,4 +8,5 @@ export const {
   startTracking,
   stopTracking,
   querySteps,
+  queryCount,
 } = Pedometer;

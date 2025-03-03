@@ -139,15 +139,42 @@ class PedometerModule(
   }
 
   /**
+   * 指定期間の累積歩数を取得
+   *
+   * @param from 開始時間（UTCミリ秒）
+   * @param to 終了時間（UTCミリ秒）
+   */
+  override fun queryCount(from: Double, to: Double, promise: Promise) {
+    ErrorHandler.handleCoroutine(moduleScope, Dispatchers.IO, promise) {
+      try {
+        when (val result = stepRepository.getStepsBetween(from.toLong(), to.toLong())) {
+          is PedometerResult.Success -> {
+            val stepEntities = result.value
+            // 各StepEntityのcalculatedStepsを合計して累積歩数を計算
+            val totalSteps = stepEntities.sumOf { it.calculatedSteps }
+            PedometerResult.success(totalSteps)
+          }
+          is PedometerResult.Failure -> result
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "累積歩数の取得中にエラーが発生しました", e)
+        PedometerResult.Failure(
+          PedometerError.fromThrowable(e)
+        )
+      }
+    }
+  }
+
+  /**
    * 指定期間の歩数データを取得
    *
-   * @param from 開始時間（ミリ秒）
-   * @param to 終了時間（ミリ秒）
+   * @param from 開始時間（UTCミリ秒）
+   * @param to 終了時間（UTCミリ秒）
    */
   override fun querySteps(from: Double, to: Double, promise: Promise) {
     ErrorHandler.handleCoroutine(moduleScope, Dispatchers.IO, promise) {
       try {
-        val result = (stepRepository as com.pedometer.repository.StepRepository)
+        val result = stepRepository
           .getStepsBetween(from.toLong(), to.toLong())
 
         when (result) {

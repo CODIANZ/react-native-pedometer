@@ -163,13 +163,12 @@ const App = () => {
         `Querying step count from ${startOfDay.toISOString()} to ${endOfDay.toISOString()} [${tzDisplay}]`
       );
 
-      const data = await Pedometer.querySteps(
+      const data = await Pedometer.queryCount(
         startOfDay.getTime(),
         endOfDay.getTime()
       );
-      const sum = data.reduce((acc, { steps }) => acc + steps, 0);
-      setStepCount(sum);
-      addLog(`Returned step count: ${sum}`);
+      setStepCount(data);
+      addLog(`Returned step count: ${data}`);
     } catch (e) {
       if (e instanceof Error) {
         handleError(e, 'Step count query');
