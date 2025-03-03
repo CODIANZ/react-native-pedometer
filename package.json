@@ -1,5 +1,5 @@
 {
-  "name": "react-native-pedometer",
+  "name": "@codianz/react-native-pedometer",
   "version": "0.1.0",
   "description": "pedometer",
   "source": "./src/index.tsx",
