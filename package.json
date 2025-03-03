@@ -121,9 +121,16 @@
     },
     "plugins": {
       "@release-it/conventional-changelog": {
-        "preset": "angular"
+        "infile": "CHANGELOG.md",
+        "preset": {
+          "name": "conventionalcommits",
+          "type": [
+            { "type": "feat", "section": "Features"},
+            { "type": "fix", "section": "Bug Fixes"}
+          ]
+        }
       }
-    }
+    } 
   },
   "eslintConfig": {
     "root": true,
