@@ -3,7 +3,6 @@ package com.pedometer.repository
 import android.util.Log
 import com.pedometer.database.StepDao
 import com.pedometer.database.StepEntity
-import com.pedometer.model.StepSummary
 import com.pedometer.model.RawStepData
 import com.pedometer.util.ErrorHandler
 import com.pedometer.util.PedometerError

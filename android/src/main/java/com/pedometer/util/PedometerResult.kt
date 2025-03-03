@@ -125,3 +125,16 @@ fun <T> Either<Throwable, T>.toPedometerResult(): PedometerResult<T> {
     { value -> PedometerResult.success(value) }
   )
 }
+
+/**
+ * Result型の値を変換する
+ */
+inline fun <T, R> PedometerResult<T>.fold(
+  onSuccess: (T) -> R,
+  onFailure: (PedometerError) -> R
+): R {
+  return when (this) {
+    is PedometerResult.Success -> onSuccess(value)
+    is PedometerResult.Failure -> onFailure(error)
+  }
+}

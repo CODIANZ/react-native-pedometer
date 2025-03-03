@@ -7,7 +7,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
 object ErrorHandler {
-  const val TAG = "ErrorHandler"
+  private const val TAG = "ErrorHandler"
 
   /**
    * 同期処理を実行し、例外をキャッチしてPromiseを解決または拒否する
@@ -72,32 +72,12 @@ object ErrorHandler {
     }
   }
 
-  /**
-   * PedometerResultを返す関数を実行する拡張関数
-   * 例外が発生した場合は適切なPedometerResult.Failureにラップする
-   */
   inline fun <T> runCatching(action: () -> T): PedometerResult<T> {
     return try {
-      val result = action()
-
-      when (result) {
-        // 既にPedometerResultの場合はそのまま返す
-        is PedometerResult<*> -> {
-          @Suppress("UNCHECKED_CAST")
-          result as PedometerResult<T>
-        }
-
-        // それ以外は成功として扱う
-        else -> PedometerResult.success(result as T)
-      }
-    } catch (e: PedometerError) {
-      // PedometerErrorの場合はそのまま失敗として返す
-      Log.e(TAG, "処理中にPedometerErrorが発生しました", e)
-      PedometerResult.Failure(e)
-    } catch (e: Exception) {
-      // その他の例外の場合は適切なPedometerErrorにラップして失敗として返す
-      Log.e(TAG, "処理中に予期しない例外が発生しました", e)
-      PedometerResult.Failure(PedometerError.fromThrowable(e))
+      PedometerResult.success(action())
+    } catch(e: Exception) {
+      // エラー処理
+      PedometerResult.failure(e)
     }
   }
 }

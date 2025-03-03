@@ -12,6 +12,7 @@ import com.pedometer.repository.IStepRepository
 import com.pedometer.util.ErrorHandler
 import com.pedometer.util.PedometerError
 import com.pedometer.util.PedometerResult
+import com.pedometer.util.fold
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -70,17 +71,16 @@ class StepSensorManager(
       ensureNewSession()
       // StepProcessorを初期化
       val result = stepProcessor.initialize()
-      if (result is PedometerResult.Failure) {
-        throw result.error // 直接エラーをスローする
-      }
 
-      // 初期セッションIDを設定
-      currentSessionId = (result as PedometerResult.Success).value
+      currentSessionId = result.fold(
+        onSuccess = { it },
+        onFailure = { throw it }
+      )
 
       // StepRepositoryにセッションIDを設定
       try {
         if (stepRepository is com.pedometer.repository.StepRepository) {
-          (stepRepository as com.pedometer.repository.StepRepository).setSessionId(currentSessionId)
+          stepRepository.setSessionId(currentSessionId)
           Log.d(TAG, "リポジトリにセッションIDを設定: $currentSessionId")
         }
       } catch (e: Exception) {
@@ -201,12 +201,13 @@ class StepSensorManager(
         // StepProcessorでセンサーデータを処理
         val result = stepProcessor.processSensorReading(sensorSteps, timestamp)
 
-        if (result is PedometerResult.Failure) {
-          Log.e(TAG, "歩数処理中にエラーが発生しました: ${result.error.message}")
-          return@launch
-        }
-
-        val processResult = (result as PedometerResult.Success).value
+        val processResult = result.fold(
+          onSuccess = {it},
+          onFailure = {error ->
+            Log.e(TAG, "歩数処理中にエラーが発生しました: ${error.message}")
+            return@launch
+          }
+        )
 
         // セッションIDの更新
         if (processResult.sessionId != currentSessionId) {
@@ -217,7 +218,7 @@ class StepSensorManager(
           // StepRepositoryにも新しいセッションIDを設定
           try {
             if (stepRepository is com.pedometer.repository.StepRepository) {
-              (stepRepository as com.pedometer.repository.StepRepository).setSessionId(
+              stepRepository.setSessionId(
                 currentSessionId
               )
             }
@@ -265,7 +266,7 @@ class StepSensorManager(
         // StepRepositoryにも設定
         try {
           if (stepRepository is com.pedometer.repository.StepRepository) {
-            (stepRepository as com.pedometer.repository.StepRepository).setSessionId(
+            stepRepository.setSessionId(
               currentSessionId
             )
           }
